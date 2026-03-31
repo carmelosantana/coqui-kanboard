@@ -1,0 +1,65 @@
+{
+    "name": "coquibot/coqui-toolkit-kanboard",
+    "description": "Kanboard toolkit for Coqui — full project management via the Kanboard JSON-RPC API",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Carmelo Santana"
+        }
+    ],
+    "keywords": [
+        "php-agents",
+        "kanboard",
+        "project-management",
+        "coqui",
+        "toolkit",
+        "json-rpc"
+    ],
+    "require": {
+        "php": "^8.4",
+        "symfony/http-client": "^7.0"
+    },
+    "require-dev": {
+        "carmelosantana/php-agents": "^0.7",
+        "pestphp/pest": "^3.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "CoquiBot\\Toolkits\\Kanboard\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CoquiBot\\Toolkits\\Kanboard\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "analyse": "phpstan analyse"
+    },
+    "extra": {
+        "php-agents": {
+            "toolkits": [
+                "CoquiBot\\Toolkits\\Kanboard\\KanboardToolkit"
+            ],
+            "description": "Kanboard — full project management with tasks, projects, subtasks, swimlanes, and board management",
+            "credentials": {
+                "KANBOARD_URL": "Kanboard JSON-RPC endpoint URL (e.g. https://kanboard.example.com/jsonrpc.php)",
+                "KANBOARD_USERNAME": "Kanboard username — use 'jsonrpc' for application API, or your username for user API",
+                "KANBOARD_API_TOKEN": "Kanboard API token — application token from Settings, or personal access token for user API"
+            },
+            "skills": "skills"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
