@@ -15,13 +15,14 @@ use CoquiBot\Toolkits\Kanboard\KanboardClient;
 /**
  * Kanboard subtask management tool.
  *
- * Covers subtask CRUD and bulk operations. Subtask status values:
+ * Covers subtask CRUD, time tracking, and bulk operations. Subtask status values:
  * 0 = Todo, 1 = In Progress, 2 = Done.
  */
 final readonly class SubtaskTool
 {
     private const array ACTIONS = [
         'create', 'get', 'list', 'update', 'remove',
+        'start_timer', 'stop_timer', 'has_timer', 'get_time_spent',
         'bulk_create', 'bulk_update', 'bulk_remove',
     ];
 
@@ -33,7 +34,7 @@ final readonly class SubtaskTool
     {
         return new Tool(
             name: 'kanboard_subtask',
-            description: 'Manage Kanboard subtasks: create, read, update, delete, and bulk operations. Status: 0=Todo, 1=In Progress, 2=Done.',
+            description: 'Manage Kanboard subtasks: create, read, update, delete, time tracking (start/stop timer, check timer, get time spent), and bulk operations. Status: 0=Todo, 1=In Progress, 2=Done.',
             parameters: [
                 new EnumParameter('action', 'The operation to perform', self::ACTIONS),
                 new NumberParameter('subtask_id', 'Subtask ID', required: false, integer: true),
@@ -59,6 +60,10 @@ final readonly class SubtaskTool
             'list' => $this->list($args),
             'update' => $this->update($args),
             'remove' => $this->remove($args),
+            'start_timer' => $this->timer($args, 'setSubtaskStartTime'),
+            'stop_timer' => $this->timer($args, 'setSubtaskEndTime'),
+            'has_timer' => $this->timer($args, 'hasSubtaskTimer'),
+            'get_time_spent' => $this->timer($args, 'getSubtaskTimeSpent'),
             'bulk_create' => $this->executeBulk($args, 'createSubtask', 'title'),
             'bulk_update' => $this->executeBulk($args, 'updateSubtask', 'id'),
             'bulk_remove' => $this->executeBulk($args, 'removeSubtask', 'subtask_id'),
@@ -131,6 +136,19 @@ final readonly class SubtaskTool
         }
 
         return $this->callApi('removeSubtask', ['subtask_id' => $subtaskId]);
+    }
+
+    private function timer(array $args, string $method): ToolResult
+    {
+        $subtaskId = $this->requireInt($args, 'subtask_id');
+        if ($subtaskId === null) {
+            return ToolResult::error('subtask_id is required for timer operations.');
+        }
+
+        $params = ['subtask_id' => $subtaskId];
+        $this->addOptionalInt($params, $args, 'user_id');
+
+        return $this->callApi($method, $params);
     }
 
     private function executeBulk(array $args, string $method, string $requiredField): ToolResult

@@ -68,8 +68,16 @@ final readonly class CommentTool
         $userId = $this->requireInt($args, 'user_id');
         $content = trim((string) ($args['content'] ?? ''));
 
-        if ($taskId === null || $userId === null || $content === '') {
-            return ToolResult::error('task_id, user_id, and content are required for create.');
+        if ($taskId === null || $content === '') {
+            return ToolResult::error('task_id and content are required for create.');
+        }
+
+        // Auto-resolve user_id from authenticated user when not provided
+        if ($userId === null) {
+            $userId = $this->client->getAuthenticatedUserId();
+            if ($userId === null) {
+                return ToolResult::error('user_id is required for create (could not auto-detect authenticated user).');
+            }
         }
 
         return $this->callApi('createComment', [

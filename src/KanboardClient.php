@@ -233,6 +233,32 @@ final class KanboardClient
     }
 
     /**
+     * Get the authenticated user's ID, cached for the lifetime of this client instance.
+     *
+     * Uses the getMe API call to resolve the current user and caches the result.
+     * Returns null if the call fails (e.g. unauthenticated or using application API).
+     */
+    public function getAuthenticatedUserId(): ?int
+    {
+        static $cachedId = null;
+        static $resolved = false;
+
+        if (!$resolved) {
+            $resolved = true;
+            try {
+                $me = $this->call('getMe');
+                if (is_array($me) && isset($me['id'])) {
+                    $cachedId = (int) $me['id'];
+                }
+            } catch (\Throwable) {
+                // Application API users don't have getMe — return null
+            }
+        }
+
+        return $cachedId;
+    }
+
+    /**
      * Check if credentials are configured.
      */
     public function isConfigured(): bool
