@@ -20,6 +20,8 @@ use CoquiBot\Toolkits\Kanboard\KanboardClient;
  */
 final readonly class TaskTool
 {
+    private const int MAX_BULK_SIZE = 50;
+
     private const array ACTIONS = [
         'create', 'get', 'get_by_reference', 'list', 'search',
         'get_overdue', 'get_overdue_by_project',
@@ -58,6 +60,11 @@ final readonly class TaskTool
                 new StringParameter('query', 'Search query for search action (e.g. "assignee:nobody status:open")', required: false),
                 new NumberParameter('status_id', 'Status filter for list (1=active, 0=inactive)', required: false, integer: true),
                 new NumberParameter('position', 'Position for move_position', required: false, integer: true),
+                new NumberParameter('recurrence_status', 'Recurrence status (0=none, 1=pending, 2=processed)', required: false, integer: true),
+                new NumberParameter('recurrence_trigger', 'Recurrence trigger (0=first column, 1=last column, 2=close)', required: false, integer: true),
+                new NumberParameter('recurrence_factor', 'Recurrence factor (multiplier for timeframe)', required: false, integer: true),
+                new NumberParameter('recurrence_timeframe', 'Recurrence timeframe (0=days, 1=months, 2=years)', required: false, integer: true),
+                new NumberParameter('recurrence_basedate', 'Recurrence base date (0=due date, 1=creation date)', required: false, integer: true),
                 new StringParameter('operations', 'JSON array of operations for bulk actions', required: false),
             ],
             callback: fn(array $args): ToolResult => $this->execute($args),
@@ -117,6 +124,11 @@ final readonly class TaskTool
         $this->addOptionalString($params, $args, 'date_due');
         $this->addOptionalString($params, $args, 'date_started');
         $this->addOptionalString($params, $args, 'reference');
+        $this->addOptionalInt($params, $args, 'recurrence_status');
+        $this->addOptionalInt($params, $args, 'recurrence_trigger');
+        $this->addOptionalInt($params, $args, 'recurrence_factor');
+        $this->addOptionalInt($params, $args, 'recurrence_timeframe');
+        $this->addOptionalInt($params, $args, 'recurrence_basedate');
 
         $tags = $this->parseJsonArray($args, 'tags');
         if ($tags !== null) {
@@ -212,6 +224,11 @@ final readonly class TaskTool
         $this->addOptionalString($params, $args, 'date_due');
         $this->addOptionalString($params, $args, 'date_started');
         $this->addOptionalString($params, $args, 'reference');
+        $this->addOptionalInt($params, $args, 'recurrence_status');
+        $this->addOptionalInt($params, $args, 'recurrence_trigger');
+        $this->addOptionalInt($params, $args, 'recurrence_factor');
+        $this->addOptionalInt($params, $args, 'recurrence_timeframe');
+        $this->addOptionalInt($params, $args, 'recurrence_basedate');
 
         $tags = $this->parseJsonArray($args, 'tags');
         if ($tags !== null) {
@@ -318,6 +335,10 @@ final readonly class TaskTool
         $operations = $this->parseOperations($args);
         if ($operations === null) {
             return ToolResult::error('operations (JSON array) is required for bulk actions.');
+        }
+
+        if (count($operations) > self::MAX_BULK_SIZE) {
+            return ToolResult::error(sprintf('Too many operations (%d). Maximum is %d per call.', count($operations), self::MAX_BULK_SIZE));
         }
 
         $requests = [];

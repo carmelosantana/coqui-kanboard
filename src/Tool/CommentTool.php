@@ -20,6 +20,8 @@ use CoquiBot\Toolkits\Kanboard\KanboardClient;
  */
 final readonly class CommentTool
 {
+    private const int MAX_BULK_SIZE = 50;
+
     private const array ACTIONS = [
         'create', 'get', 'list', 'update', 'remove',
         'bulk_create', 'bulk_remove',
@@ -40,6 +42,7 @@ final readonly class CommentTool
                 new NumberParameter('task_id', 'Task ID', required: false, integer: true),
                 new NumberParameter('user_id', 'Author user ID', required: false, integer: true),
                 new StringParameter('content', 'Comment content (Markdown supported)', required: false),
+                new StringParameter('reference', 'External reference identifier', required: false),
                 new StringParameter('operations', 'JSON array of operations for bulk actions', required: false),
             ],
             callback: fn(array $args): ToolResult => $this->execute($args),
@@ -80,11 +83,10 @@ final readonly class CommentTool
             }
         }
 
-        return $this->callApi('createComment', [
-            'task_id' => $taskId,
-            'user_id' => $userId,
-            'content' => $content,
-        ]);
+        $params = ['task_id' => $taskId, 'user_id' => $userId, 'content' => $content];
+        $this->addOptionalString($params, $args, 'reference');
+
+        return $this->callApi('createComment', $params);
     }
 
     private function get(array $args): ToolResult
@@ -142,6 +144,10 @@ final readonly class CommentTool
         $operations = json_decode($raw, true);
         if (!is_array($operations)) {
             return ToolResult::error('operations must be a valid JSON array.');
+        }
+
+        if (count($operations) > self::MAX_BULK_SIZE) {
+            return ToolResult::error(sprintf('Too many operations (%d). Maximum is %d per call.', count($operations), self::MAX_BULK_SIZE));
         }
 
         $requests = [];

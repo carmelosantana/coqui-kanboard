@@ -15,16 +15,25 @@ use CoquiBot\Toolkits\Kanboard\KanboardClient;
 /**
  * Kanboard project management tool.
  *
- * Covers all project CRUD operations plus enable/disable, public access,
- * activity streams, and bulk operations.
+ * Covers project CRUD, enable/disable, public access, activity streams,
+ * board state retrieval, application info, and bulk operations.
  */
 final readonly class ProjectTool
 {
+    private const int MAX_BULK_SIZE = 50;
+
     private const array ACTIONS = [
         'create', 'get', 'get_by_name', 'get_by_identifier', 'get_by_email',
         'list', 'update', 'remove', 'enable', 'disable',
         'enable_public_access', 'disable_public_access',
         'get_activity', 'get_activities',
+        // Board state (absorbed from BoardTool)
+        'get_board',
+        // Application info (absorbed from ApplicationTool)
+        'get_version', 'get_timezone', 'get_default_task_colors',
+        'get_default_task_color', 'get_color_list',
+        'get_app_roles', 'get_project_roles',
+        // Bulk operations
         'bulk_create', 'bulk_update', 'bulk_remove',
     ];
 
@@ -36,7 +45,7 @@ final readonly class ProjectTool
     {
         return new Tool(
             name: 'kanboard_project',
-            description: 'Manage Kanboard projects: create, read, update, delete, enable/disable, public access, activity streams, and bulk operations.',
+            description: 'Manage Kanboard projects: CRUD, enable/disable, public access, activity streams, get full board state, application info (version, timezone, colors, roles), and bulk operations.',
             parameters: [
                 new EnumParameter('action', 'The operation to perform', self::ACTIONS),
                 new NumberParameter('project_id', 'Project ID', required: false, integer: true),
@@ -47,8 +56,11 @@ final readonly class ProjectTool
                 new StringParameter('start_date', 'Project start date (YYYY-MM-DD)', required: false),
                 new StringParameter('end_date', 'Project end date (YYYY-MM-DD)', required: false),
                 new StringParameter('email', 'Project email address', required: false),
+                new NumberParameter('priority_default', 'Default task priority', required: false, integer: true),
+                new NumberParameter('priority_start', 'Priority range start', required: false, integer: true),
+                new NumberParameter('priority_end', 'Priority range end', required: false, integer: true),
                 new StringParameter('project_ids', 'JSON array of project IDs for get_activities (e.g. [1,2,3])', required: false),
-                new StringParameter('operations', 'JSON array of operations for bulk actions', required: false),
+                new StringParameter('operations', 'JSON array of operations for bulk actions (max 50)', required: false),
             ],
             callback: fn(array $args): ToolResult => $this->execute($args),
         );
@@ -73,6 +85,17 @@ final readonly class ProjectTool
             'disable_public_access' => $this->toggleProject($args, 'disableProjectPublicAccess'),
             'get_activity' => $this->getActivity($args),
             'get_activities' => $this->getActivities($args),
+            // Board state
+            'get_board' => $this->getBoard($args),
+            // Application info
+            'get_version' => $this->callApi('getVersion'),
+            'get_timezone' => $this->callApi('getTimezone'),
+            'get_default_task_colors' => $this->callApi('getDefaultTaskColors'),
+            'get_default_task_color' => $this->callApi('getDefaultTaskColor'),
+            'get_color_list' => $this->callApi('getColorList'),
+            'get_app_roles' => $this->callApi('getApplicationRoles'),
+            'get_project_roles' => $this->callApi('getProjectRoles'),
+            // Bulk
             'bulk_create' => $this->bulkCreate($args),
             'bulk_update' => $this->bulkUpdate($args),
             'bulk_remove' => $this->bulkRemove($args),
@@ -94,6 +117,9 @@ final readonly class ProjectTool
         $this->addOptionalString($params, $args, 'start_date');
         $this->addOptionalString($params, $args, 'end_date');
         $this->addOptionalString($params, $args, 'email');
+        $this->addOptionalInt($params, $args, 'priority_default');
+        $this->addOptionalInt($params, $args, 'priority_start');
+        $this->addOptionalInt($params, $args, 'priority_end');
 
         return $this->callApi('createProject', $params);
     }
@@ -158,6 +184,9 @@ final readonly class ProjectTool
         $this->addOptionalString($params, $args, 'start_date');
         $this->addOptionalString($params, $args, 'end_date');
         $this->addOptionalString($params, $args, 'email');
+        $this->addOptionalInt($params, $args, 'priority_default');
+        $this->addOptionalInt($params, $args, 'priority_start');
+        $this->addOptionalInt($params, $args, 'priority_end');
 
         return $this->callApi('updateProject', $params);
     }
@@ -207,6 +236,16 @@ final readonly class ProjectTool
         return $this->callApi('getProjectActivities', ['project_ids' => array_map(intval(...), $ids)]);
     }
 
+    private function getBoard(array $args): ToolResult
+    {
+        $projectId = $this->requireInt($args, 'project_id');
+        if ($projectId === null) {
+            return ToolResult::error('project_id is required for get_board.');
+        }
+
+        return $this->callApi('getBoard', ['project_id' => $projectId]);
+    }
+
     private function bulkCreate(array $args): ToolResult
     {
         return $this->executeBulk($args, 'createProject', 'name');
@@ -230,6 +269,10 @@ final readonly class ProjectTool
         $operations = $this->parseOperations($args);
         if ($operations === null) {
             return ToolResult::error('operations (JSON array) is required for bulk actions.');
+        }
+
+        if (count($operations) > self::MAX_BULK_SIZE) {
+            return ToolResult::error(sprintf('Too many operations (%d). Maximum is %d per call.', count($operations), self::MAX_BULK_SIZE));
         }
 
         $requests = [];

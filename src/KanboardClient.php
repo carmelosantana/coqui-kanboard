@@ -17,6 +17,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * (application API, user API with password, user API with personal token)
  * through HTTP Basic Authentication.
  *
+ * Dual-auth mode: an optional admin token (KANBOARD_ADMIN_TOKEN) enables
+ * admin-level calls via the application API (username 'jsonrpc') which bypass
+ * project-level permission checks. When not set, all calls use primary credentials.
+ *
  * Uses lazy credential resolution for hot-reload support — after the LLM sets
  * credentials via the credentials tool, the next call picks them up immediately.
  */
@@ -29,6 +33,7 @@ final class KanboardClient
         private string $url = '',
         private string $username = '',
         private string $token = '',
+        private string $adminToken = '',
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = $httpClient ?? HttpClient::create(['timeout' => 30]);
@@ -42,11 +47,13 @@ final class KanboardClient
         $url = getenv('KANBOARD_URL');
         $username = getenv('KANBOARD_USERNAME');
         $token = getenv('KANBOARD_API_TOKEN');
+        $adminToken = getenv('KANBOARD_ADMIN_TOKEN');
 
         return new self(
             url: $url !== false ? $url : '',
             username: $username !== false ? $username : '',
             token: $token !== false ? $token : '',
+            adminToken: $adminToken !== false ? $adminToken : '',
         );
     }
 
@@ -58,6 +65,125 @@ final class KanboardClient
      * @throws KanboardAuthException On authentication failure
      */
     public function call(string $method, array $params = []): mixed
+    {
+        return $this->doCall($method, $params, $this->buildAuthToken());
+    }
+
+    /**
+     * Execute a batch of JSON-RPC 2.0 calls in a single HTTP request.
+     *
+     * Kanboard supports batch requests per the JSON-RPC 2.0 spec.
+     * Each request is an array with 'method' and optional 'params' keys.
+     *
+     * @param array<int, array{method: string, params?: array<string, mixed>}> $requests
+     * @return array<int, array{success: bool, result?: mixed, error?: string}> Results in corresponding order
+     * @throws KanboardAuthException On authentication failure
+     */
+    public function batch(array $requests): array
+    {
+        return $this->doBatch($requests, $this->buildAuthToken());
+    }
+
+    /**
+     * Get the authenticated user's ID, cached for the lifetime of this client instance.
+     *
+     * Uses the getMe API call to resolve the current user and caches the result.
+     * Returns null if the call fails (e.g. unauthenticated or using application API).
+     */
+    public function getAuthenticatedUserId(): ?int
+    {
+        static $cachedId = null;
+        static $resolved = false;
+
+        if (!$resolved) {
+            $resolved = true;
+            try {
+                $me = $this->call('getMe');
+                if (is_array($me) && isset($me['id'])) {
+                    $cachedId = (int) $me['id'];
+                }
+            } catch (\Throwable) {
+                // Application API users don't have getMe — return null
+            }
+        }
+
+        return $cachedId;
+    }
+
+    /**
+     * Check if credentials are configured.
+     */
+    public function isConfigured(): bool
+    {
+        return $this->resolveUrl() !== '' && $this->resolveUsername() !== '' && $this->resolveToken() !== '';
+    }
+
+    /**
+     * Check if an admin (application API) token is available.
+     */
+    public function hasAdminToken(): bool
+    {
+        return $this->resolveAdminToken() !== '';
+    }
+
+    /**
+     * Check if primary credentials use the application API (username 'jsonrpc').
+     *
+     * Application API bypasses all permission checks but cannot access "Me" procedures.
+     */
+    public function isAppApi(): bool
+    {
+        return strtolower($this->resolveUsername()) === 'jsonrpc';
+    }
+
+    /**
+     * Execute a single JSON-RPC 2.0 call using admin (application API) credentials.
+     *
+     * Uses KANBOARD_ADMIN_TOKEN with username 'jsonrpc' when available.
+     * Falls back to primary credentials if no admin token is configured.
+     *
+     * @param array<string, mixed> $params
+     * @throws KanboardApiException On JSON-RPC error or invalid response
+     * @throws KanboardAuthException On authentication failure
+     */
+    public function callAsAdmin(string $method, array $params = []): mixed
+    {
+        $adminToken = $this->resolveAdminToken();
+        if ($adminToken === '') {
+            return $this->call($method, $params);
+        }
+
+        return $this->doCall($method, $params, base64_encode('jsonrpc:' . $adminToken));
+    }
+
+    /**
+     * Execute a batch of JSON-RPC 2.0 calls using admin (application API) credentials.
+     *
+     * @param array<int, array{method: string, params?: array<string, mixed>}> $requests
+     * @return array<int, array{success: bool, result?: mixed, error?: string}>
+     * @throws KanboardAuthException On authentication failure
+     */
+    public function batchAsAdmin(array $requests): array
+    {
+        $adminToken = $this->resolveAdminToken();
+        if ($adminToken === '') {
+            return $this->batch($requests);
+        }
+
+        return $this->doBatch($requests, base64_encode('jsonrpc:' . $adminToken));
+    }
+
+    private function buildAuthToken(): string
+    {
+        return base64_encode($this->resolveUsername() . ':' . $this->resolveToken());
+    }
+
+    /**
+     * Core JSON-RPC single call transport.
+     *
+     * @param array<string, mixed> $params
+     */
+    private function doCall(string $method, array $params, string $authToken): mixed
     {
         $url = $this->resolveUrl();
         $requestId = $this->requestId++;
@@ -73,7 +199,7 @@ final class KanboardClient
             $response = $this->httpClient->request('POST', $url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
-                    'Authorization' => 'Basic ' . $this->buildAuthToken(),
+                    'Authorization' => 'Basic ' . $authToken,
                 ],
                 'body' => json_encode($payload, JSON_THROW_ON_ERROR),
             ]);
@@ -124,26 +250,22 @@ final class KanboardClient
     }
 
     /**
-     * Execute a batch of JSON-RPC 2.0 calls in a single HTTP request.
-     *
-     * Kanboard supports batch requests per the JSON-RPC 2.0 spec.
-     * Each request is an array with 'method' and optional 'params' keys.
+     * Core JSON-RPC batch call transport.
      *
      * @param array<int, array{method: string, params?: array<string, mixed>}> $requests
-     * @return array<int, array{success: bool, result?: mixed, error?: string}> Results in corresponding order
-     * @throws KanboardAuthException On authentication failure
+     * @return array<int, array{success: bool, result?: mixed, error?: string}>
      */
-    public function batch(array $requests): array
+    private function doBatch(array $requests, string $authToken): array
     {
         if (empty($requests)) {
             return [];
         }
 
-        // Single request — use normal call for simplicity
+        // Single request — use doCall for simplicity
         if (count($requests) === 1) {
             $req = $requests[0];
             try {
-                $result = $this->call($req['method'], $req['params'] ?? []);
+                $result = $this->doCall($req['method'], $req['params'] ?? [], $authToken);
                 return [['success' => true, 'result' => $result]];
             } catch (KanboardApiException $e) {
                 return [['success' => false, 'error' => $e->getMessage()]];
@@ -170,7 +292,7 @@ final class KanboardClient
             $response = $this->httpClient->request('POST', $url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
-                    'Authorization' => 'Basic ' . $this->buildAuthToken(),
+                    'Authorization' => 'Basic ' . $authToken,
                 ],
                 'body' => json_encode($payload, JSON_THROW_ON_ERROR),
             ]);
@@ -232,45 +354,6 @@ final class KanboardClient
         return $results;
     }
 
-    /**
-     * Get the authenticated user's ID, cached for the lifetime of this client instance.
-     *
-     * Uses the getMe API call to resolve the current user and caches the result.
-     * Returns null if the call fails (e.g. unauthenticated or using application API).
-     */
-    public function getAuthenticatedUserId(): ?int
-    {
-        static $cachedId = null;
-        static $resolved = false;
-
-        if (!$resolved) {
-            $resolved = true;
-            try {
-                $me = $this->call('getMe');
-                if (is_array($me) && isset($me['id'])) {
-                    $cachedId = (int) $me['id'];
-                }
-            } catch (\Throwable) {
-                // Application API users don't have getMe — return null
-            }
-        }
-
-        return $cachedId;
-    }
-
-    /**
-     * Check if credentials are configured.
-     */
-    public function isConfigured(): bool
-    {
-        return $this->resolveUrl() !== '' && $this->resolveUsername() !== '' && $this->resolveToken() !== '';
-    }
-
-    private function buildAuthToken(): string
-    {
-        return base64_encode($this->resolveUsername() . ':' . $this->resolveToken());
-    }
-
     private function resolveUrl(): string
     {
         if ($this->url !== '') {
@@ -300,6 +383,17 @@ final class KanboardClient
         }
 
         $env = getenv('KANBOARD_API_TOKEN');
+
+        return $env !== false ? $env : '';
+    }
+
+    private function resolveAdminToken(): string
+    {
+        if ($this->adminToken !== '') {
+            return $this->adminToken;
+        }
+
+        $env = getenv('KANBOARD_ADMIN_TOKEN');
 
         return $env !== false ? $env : '';
     }

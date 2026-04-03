@@ -19,6 +19,8 @@ use CoquiBot\Toolkits\Kanboard\KanboardClient;
  */
 final readonly class SwimlaneTool
 {
+    private const int MAX_BULK_SIZE = 50;
+
     private const array ACTIONS = [
         'list_active', 'list_all', 'get', 'get_by_name',
         'create', 'update', 'remove', 'enable', 'disable',
@@ -128,12 +130,14 @@ final readonly class SwimlaneTool
 
     private function update(array $args): ToolResult
     {
+        $projectId = $this->requireInt($args, 'project_id');
         $swimlaneId = $this->requireInt($args, 'swimlane_id');
-        if ($swimlaneId === null) {
-            return ToolResult::error('swimlane_id is required for update.');
+
+        if ($projectId === null || $swimlaneId === null) {
+            return ToolResult::error('project_id and swimlane_id are required for update.');
         }
 
-        $params = ['swimlane_id' => $swimlaneId];
+        $params = ['project_id' => $projectId, 'swimlane_id' => $swimlaneId];
         $this->addOptionalString($params, $args, 'name');
         $this->addOptionalString($params, $args, 'description');
 
@@ -191,6 +195,10 @@ final readonly class SwimlaneTool
         $operations = json_decode($raw, true);
         if (!is_array($operations)) {
             return ToolResult::error('operations must be a valid JSON array.');
+        }
+
+        if (count($operations) > self::MAX_BULK_SIZE) {
+            return ToolResult::error(sprintf('Too many operations (%d). Maximum is %d per call.', count($operations), self::MAX_BULK_SIZE));
         }
 
         $requests = [];

@@ -19,6 +19,8 @@ use CoquiBot\Toolkits\Kanboard\KanboardClient;
  */
 final readonly class ColumnTool
 {
+    private const int MAX_BULK_SIZE = 50;
+
     private const array ACTIONS = [
         'list', 'get', 'create', 'update', 'remove', 'change_position',
         'bulk_create', 'bulk_remove',
@@ -152,6 +154,10 @@ final readonly class ColumnTool
         $operations = json_decode($raw, true);
         if (!is_array($operations)) {
             return ToolResult::error('operations must be a valid JSON array.');
+        }
+
+        if (count($operations) > self::MAX_BULK_SIZE) {
+            return ToolResult::error(sprintf('Too many operations (%d). Maximum is %d per call.', count($operations), self::MAX_BULK_SIZE));
         }
 
         $requests = [];

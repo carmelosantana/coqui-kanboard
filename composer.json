@@ -55,7 +55,15 @@
             "credentials": {
                 "KANBOARD_URL": "Kanboard JSON-RPC endpoint URL (e.g. https://kanboard.example.com/jsonrpc.php)",
                 "KANBOARD_USERNAME": "Kanboard username — use 'jsonrpc' for application API, or your username for user API",
-                "KANBOARD_API_TOKEN": "Kanboard API token — application token from Settings, or personal access token for user API"
+                "KANBOARD_API_TOKEN": "Kanboard API token — application token from Settings, or personal access token for user API",
+                "KANBOARD_ADMIN_TOKEN": {
+                    "description": "Application API token from Kanboard Settings → API. Enables admin operations (user/group management, project permissions) that bypass permission checks. If not set, primary credentials are used for all operations.",
+                    "optional": true
+                }
+            },
+            "gated": {
+                "kanboard_admin": ["remove", "disable", "group_remove", "perm_remove_user", "perm_remove_group", "bulk_remove"],
+                "kanboard_project": ["remove", "disable", "bulk_remove"]
             },
             "skills": "skills"
         }

@@ -6,40 +6,36 @@ namespace CoquiBot\Toolkits\Kanboard;
 
 use CarmeloSantana\PHPAgents\Contract\ToolkitInterface;
 use CoquiBot\Toolkits\Kanboard\Tool\ActionTool;
-use CoquiBot\Toolkits\Kanboard\Tool\ApplicationTool;
-use CoquiBot\Toolkits\Kanboard\Tool\BoardTool;
+use CoquiBot\Toolkits\Kanboard\Tool\AdminTool;
 use CoquiBot\Toolkits\Kanboard\Tool\CategoryTool;
 use CoquiBot\Toolkits\Kanboard\Tool\ColumnTool;
 use CoquiBot\Toolkits\Kanboard\Tool\CommentTool;
-use CoquiBot\Toolkits\Kanboard\Tool\ExternalTaskLinkTool;
-use CoquiBot\Toolkits\Kanboard\Tool\GroupTool;
+use CoquiBot\Toolkits\Kanboard\Tool\FileTool;
+use CoquiBot\Toolkits\Kanboard\Tool\MeTool;
 use CoquiBot\Toolkits\Kanboard\Tool\MetadataTool;
-use CoquiBot\Toolkits\Kanboard\Tool\ProjectFileTool;
-use CoquiBot\Toolkits\Kanboard\Tool\ProjectPermissionTool;
 use CoquiBot\Toolkits\Kanboard\Tool\ProjectTool;
 use CoquiBot\Toolkits\Kanboard\Tool\SubtaskTool;
 use CoquiBot\Toolkits\Kanboard\Tool\SwimlaneTool;
 use CoquiBot\Toolkits\Kanboard\Tool\TagTool;
-use CoquiBot\Toolkits\Kanboard\Tool\TaskFileTool;
 use CoquiBot\Toolkits\Kanboard\Tool\TaskLinkTool;
 use CoquiBot\Toolkits\Kanboard\Tool\TaskTool;
-use CoquiBot\Toolkits\Kanboard\Tool\UserTool;
 
 /**
  * Kanboard project management toolkit for Coqui.
  *
- * Provides 19 domain-level tools covering the full Kanboard JSON-RPC 2.0 API:
- * projects, tasks, subtasks (with time tracking), swimlanes, board state, columns,
- * categories, comments, tags, task file attachments, users, groups, project
- * permissions, automatic actions, task links, external task links, project files,
- * metadata, and application info.
+ * Provides 14 domain-level tools covering the full Kanboard JSON-RPC 2.0 API:
+ * projects (with board state and app info), tasks, subtasks (with time tracking),
+ * swimlanes, columns, categories, comments, tags, files (project + task), admin
+ * operations (users, groups, permissions), personal dashboard (me), automatic
+ * actions, links (internal + external), and metadata.
  *
- * Each tool exposes an `action` enum parameter that dispatches to specific
- * Kanboard API methods, with bulk variants that use JSON-RPC batch requests.
+ * Supports dual-auth: primary credentials for normal operations, optional
+ * KANBOARD_ADMIN_TOKEN (Application API) for admin operations that bypass
+ * project-level permission checks.
  *
  * Auto-discovered by Coqui's ToolkitDiscovery when installed via Composer.
  * Credentials (KANBOARD_URL, KANBOARD_USERNAME, KANBOARD_API_TOKEN) are managed
- * through Coqui's credential system.
+ * through Coqui's credential system. KANBOARD_ADMIN_TOKEN is optional.
  */
 final class KanboardToolkit implements ToolkitInterface
 {
@@ -63,24 +59,19 @@ final class KanboardToolkit implements ToolkitInterface
             (new TaskTool($this->client))->build(),
             (new SubtaskTool($this->client))->build(),
             (new SwimlaneTool($this->client))->build(),
-            (new BoardTool($this->client))->build(),
             (new ColumnTool($this->client))->build(),
             (new CategoryTool($this->client))->build(),
             (new CommentTool($this->client))->build(),
             (new TagTool($this->client))->build(),
-            (new TaskFileTool($this->client))->build(),
-            // Administration & permissions
-            (new UserTool($this->client))->build(),
-            (new GroupTool($this->client))->build(),
-            (new ProjectPermissionTool($this->client))->build(),
+            (new FileTool($this->client))->build(),
+            // Administration & personal
+            (new AdminTool($this->client))->build(),
+            (new MeTool($this->client))->build(),
             // Automation & linking
             (new ActionTool($this->client))->build(),
             (new TaskLinkTool($this->client))->build(),
-            (new ExternalTaskLinkTool($this->client))->build(),
-            // Files, metadata & app info
-            (new ProjectFileTool($this->client))->build(),
+            // Metadata
             (new MetadataTool($this->client))->build(),
-            (new ApplicationTool($this->client))->build(),
         ];
     }
 
@@ -90,67 +81,60 @@ final class KanboardToolkit implements ToolkitInterface
             <KANBOARD-TOOLKIT-GUIDELINES>
             ## Kanboard Project Management
 
-            You have full access to a Kanboard instance through 19 tools covering all project
+            You have full access to a Kanboard instance through 14 tools covering all project
             management domains. Use these tools to manage projects, tasks, users, and workflows.
 
-            ### Tool Overview — Core
-            - `kanboard_project` — Create, list, update, enable/disable projects, activity streams
+            ### Dual-Auth Architecture
+            - **Primary credentials** (KANBOARD_URL, KANBOARD_USERNAME, KANBOARD_API_TOKEN) are used
+              for all normal operations via `kanboard_project`, `kanboard_task`, etc.
+            - **Admin token** (KANBOARD_ADMIN_TOKEN, optional) is the Application API token from
+              Kanboard Settings → API. When set, `kanboard_admin` routes through it automatically,
+              bypassing project-level permission checks. This solves the common issue where even
+              app-admin users can't manage project permissions via the User API.
+            - **Personal "Me" tools** (KANBOARD_ME) require User API auth (not `jsonrpc` username).
+              They show the authenticated user's dashboard, activity, and overdue tasks.
+
+            ### Tool Overview — Core (10 tools)
+            - `kanboard_project` — Projects, board state, activity, app info (version/colors/roles)
             - `kanboard_task` — Full task lifecycle: create, search, move, close, overdue tracking
             - `kanboard_subtask` — Subtask CRUD, time tracking (start/stop timer, get time spent)
             - `kanboard_swimlane` — Swimlane management: create, enable/disable, reorder
-            - `kanboard_board` — Get full board state (swimlanes → columns → tasks)
             - `kanboard_column` — Column CRUD and reordering within projects
             - `kanboard_category` — Category management for task classification
             - `kanboard_comment` — Task comments with Markdown (auto-resolves user_id)
             - `kanboard_tag` — Project and task-level tag management
-            - `kanboard_task_file` — Task file attachments (upload/download as base64)
-
-            ### Tool Overview — Administration
-            - `kanboard_user` — User CRUD, enable/disable, roles (app-admin/manager/user), get_me
-            - `kanboard_group` — Group CRUD, member add/remove/list, membership checks
-            - `kanboard_project_permission` — User/group project access, role assignment (project-manager/member/viewer)
-
-            ### Tool Overview — Automation & Links
-            - `kanboard_action` — Automatic actions: list available, create/remove project automations
-            - `kanboard_task_link` — Link types (blocks, relates to) and internal task-to-task links
-            - `kanboard_external_task_link` — Link tasks to external URLs with dependency tracking
-
-            ### Tool Overview — Files, Metadata & Info
-            - `kanboard_project_file` — Project-level file attachments (upload/download as base64)
+            - `kanboard_file` — Project and task file attachments (upload/download as base64)
             - `kanboard_metadata` — Arbitrary key-value storage on projects and tasks
-            - `kanboard_application` — App version, timezone, default task colors
+
+            ### Tool Overview — Administration & Personal (2 tools)
+            - `kanboard_admin` — Users, groups, project permissions (all via admin token when available)
+            - `kanboard_me` — Personal dashboard, activity stream, overdue tasks, private projects
+
+            ### Tool Overview — Automation & Links (2 tools)
+            - `kanboard_action` — Automatic actions: list available, create/remove project automations
+            - `kanboard_link` — Link types, internal task-to-task links, external URL links
 
             ### Workflow Best Practices
             1. **Discovery first**: Use `kanboard_project` action `list` to see available projects
-            2. **Board overview**: Use `kanboard_board` to see the full state before making changes
-            3. **Bulk operations**: For multiple creates/updates/deletes, use `bulk_*` actions —
-               they use JSON-RPC batch requests for efficiency
+            2. **Board overview**: Use `kanboard_project` action `get_board` to see full board state
+            3. **Bulk operations**: Use `bulk_*` actions for multiple operations — they use JSON-RPC
+               batch requests for efficiency (max 50 per call)
             4. **Task search**: Use `kanboard_task` action `search` with Kanboard's query syntax
                (e.g. "status:open assignee:me due:tomorrow")
-            5. **Overdue monitoring**: Use `get_overdue` to find tasks past their due date
-            6. **User setup**: Use `kanboard_user` to manage users, then `kanboard_project_permission`
-               to grant project access with appropriate roles
-            7. **Automation**: Use `kanboard_action` to set up automatic workflows (auto-close,
-               auto-assign, email on events). List available actions first, then compatible events.
-            8. **Time tracking**: Use `kanboard_subtask` start_timer/stop_timer to track time on subtasks
-
-            ### Authentication
-            Three auth modes supported via KANBOARD_URL, KANBOARD_USERNAME, KANBOARD_API_TOKEN:
-            - **Application API**: username=`jsonrpc`, token=application API token
-            - **User API (password)**: username=user login, token=user password
-            - **User API (personal token)**: username=user login, token=personal API token
+            5. **User setup**: Use `kanboard_admin` for user/group CRUD and project permission management
+            6. **Personal view**: Use `kanboard_me` for the authenticated user's dashboard and overdue tasks
+            7. **Automation**: Use `kanboard_action` to set up automatic workflows. List available
+               actions first, then compatible events.
+            8. **Time tracking**: Use `kanboard_subtask` start_timer/stop_timer to track time
 
             ### Important Notes
-            - All IDs are integers. Project, task, column, swimlane, category, tag, and file IDs
-              are returned by create operations.
+            - All IDs are integers. Create operations return the new ID.
             - Dates use YYYY-MM-DD format. Timestamps use ISO 8601.
             - Task colors: yellow, blue, green, purple, red, orange, grey, brown, deep_orange,
               dark_grey, teal, lime, light_green, amber.
             - File tools handle binary data as base64 strings.
-            - Comments support Markdown formatting and auto-resolve user_id from authenticated user.
             - Project roles: project-manager, project-member, project-viewer.
             - Application roles: app-admin, app-manager, app-user.
-            - Action classes use FQCN format: `\Kanboard\Action\TaskClose`, `\Kanboard\Action\TaskAssignColorColumn`, etc.
             </KANBOARD-TOOLKIT-GUIDELINES>
             GUIDELINES;
     }

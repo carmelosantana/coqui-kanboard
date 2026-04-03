@@ -20,6 +20,8 @@ use CoquiBot\Toolkits\Kanboard\KanboardClient;
  */
 final readonly class TagTool
 {
+    private const int MAX_BULK_SIZE = 50;
+
     private const array ACTIONS = [
         'list_all', 'list_by_project', 'create', 'update', 'remove',
         'get_task_tags', 'set_task_tags',
@@ -159,10 +161,14 @@ final readonly class TagTool
             return ToolResult::error('operations must be a valid JSON array.');
         }
 
+        if (count($operations) > self::MAX_BULK_SIZE) {
+            return ToolResult::error(sprintf('Too many operations (%d). Maximum is %d per call.', count($operations), self::MAX_BULK_SIZE));
+        }
+
         $requests = [];
         foreach ($operations as $i => $op) {
-            if (!is_array($op) || !isset($op['task_id'], $op['tags'])) {
-                return ToolResult::error("Operation {$i}: missing required fields (task_id, tags).");
+            if (!is_array($op) || !isset($op['project_id'], $op['task_id'], $op['tags'])) {
+                return ToolResult::error("Operation {$i}: missing required fields (project_id, task_id, tags).");
             }
             $requests[] = ['method' => 'setTaskTags', 'params' => $op];
         }
