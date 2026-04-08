@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace CoquiBot\Toolkits\Kanboard;
+namespace CarmeloSantana\CoquiToolkitKanboard;
 
 use CarmeloSantana\PHPAgents\Contract\ToolkitInterface;
-use CoquiBot\Toolkits\Kanboard\Tool\ActionTool;
-use CoquiBot\Toolkits\Kanboard\Tool\AdminTool;
-use CoquiBot\Toolkits\Kanboard\Tool\CategoryTool;
-use CoquiBot\Toolkits\Kanboard\Tool\ColumnTool;
-use CoquiBot\Toolkits\Kanboard\Tool\CommentTool;
-use CoquiBot\Toolkits\Kanboard\Tool\FileTool;
-use CoquiBot\Toolkits\Kanboard\Tool\MeTool;
-use CoquiBot\Toolkits\Kanboard\Tool\MetadataTool;
-use CoquiBot\Toolkits\Kanboard\Tool\ProjectTool;
-use CoquiBot\Toolkits\Kanboard\Tool\SubtaskTool;
-use CoquiBot\Toolkits\Kanboard\Tool\SwimlaneTool;
-use CoquiBot\Toolkits\Kanboard\Tool\TagTool;
-use CoquiBot\Toolkits\Kanboard\Tool\TaskLinkTool;
-use CoquiBot\Toolkits\Kanboard\Tool\TaskTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\ActionTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\AdminTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\CategoryTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\ColumnTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\CommentTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\FileTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\MeTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\MetadataTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\ProjectTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\SubtaskTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\SwimlaneTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\TagTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\TaskLinkTool;
+use CarmeloSantana\CoquiToolkitKanboard\Tool\TaskTool;
 
 /**
  * Kanboard project management toolkit for Coqui.

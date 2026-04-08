@@ -1,5 +1,5 @@
 {
-    "name": "coquibot/coqui-toolkit-kanboard",
+    "name": "carmelosantana/coqui-toolkit-kanboard",
     "description": "Kanboard toolkit for Coqui — full project management via the Kanboard JSON-RPC API",
     "type": "library",
     "license": "MIT",
@@ -27,12 +27,12 @@
     },
     "autoload": {
         "psr-4": {
-            "CoquiBot\\Toolkits\\Kanboard\\": "src/"
+            "CarmeloSantana\\CoquiToolkitKanboard\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "CoquiBot\\Toolkits\\Kanboard\\Tests\\": "tests/"
+            "CarmeloSantana\\CoquiToolkitKanboard\\Tests\\": "tests/"
         }
     },
     "config": {
@@ -49,7 +49,7 @@
     "extra": {
         "php-agents": {
             "toolkits": [
-                "CoquiBot\\Toolkits\\Kanboard\\KanboardToolkit"
+                "CarmeloSantana\\CoquiToolkitKanboard\\KanboardToolkit"
             ],
             "description": "Kanboard — full project management with tasks, projects, subtasks, swimlanes, and board management",
             "credentials": {

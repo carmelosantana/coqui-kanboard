@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace CoquiBot\Toolkits\Kanboard\Exception;
+namespace CarmeloSantana\CoquiToolkitKanboard\Exception;
 
 /**
  * Thrown when Kanboard authentication fails (HTTP 401/403).

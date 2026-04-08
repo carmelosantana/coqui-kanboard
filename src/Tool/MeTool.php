@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace CoquiBot\Toolkits\Kanboard\Tool;
+namespace CarmeloSantana\CoquiToolkitKanboard\Tool;
 
 use CarmeloSantana\PHPAgents\Contract\ToolInterface;
 use CarmeloSantana\PHPAgents\Tool\Tool;
 use CarmeloSantana\PHPAgents\Tool\ToolResult;
 use CarmeloSantana\PHPAgents\Tool\Parameter\EnumParameter;
 use CarmeloSantana\PHPAgents\Tool\Parameter\StringParameter;
-use CoquiBot\Toolkits\Kanboard\KanboardClient;
+use CarmeloSantana\CoquiToolkitKanboard\KanboardClient;
 
 /**
  * Kanboard "Me" procedures tool.

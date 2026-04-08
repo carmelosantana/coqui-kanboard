@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace CoquiBot\Toolkits\Kanboard;
+namespace CarmeloSantana\CoquiToolkitKanboard;
 
-use CoquiBot\Toolkits\Kanboard\Exception\KanboardApiException;
-use CoquiBot\Toolkits\Kanboard\Exception\KanboardAuthException;
+use CarmeloSantana\CoquiToolkitKanboard\Exception\KanboardApiException;
+use CarmeloSantana\CoquiToolkitKanboard\Exception\KanboardAuthException;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
