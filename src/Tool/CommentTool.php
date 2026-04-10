@@ -190,4 +190,16 @@ final readonly class CommentTool
 
         return (int) $args[$key];
     }
+
+    private function addOptionalString(array &$params, array $args, string $key): void
+    {
+        if (!isset($args[$key])) {
+            return;
+        }
+
+        $value = trim((string) $args[$key]);
+        if ($value !== '') {
+            $params[$key] = $value;
+        }
+    }
 }

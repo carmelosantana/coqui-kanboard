@@ -233,10 +233,6 @@ final class KanboardClient
             throw KanboardApiException::connectionFailed($url, $e->getMessage());
         }
 
-        if (!is_array($data)) {
-            throw KanboardApiException::invalidResponse('Expected JSON object');
-        }
-
         if (isset($data['error'])) {
             $error = $data['error'];
             throw KanboardApiException::fromJsonRpc(
